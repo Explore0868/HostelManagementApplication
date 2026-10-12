@@ -45,11 +45,11 @@ public class AdminBootstrap implements ApplicationRunner {
 
         if (adminEmail == null || adminEmail.isBlank()
                 || adminName == null || adminName.isBlank()
-                || adminPassword == null || adminPassword.length() < 12
+                || adminPassword == null || adminPassword.length() < 8
                 || adminPassword.length() > 72) {
             throw new IllegalStateException(
                 "Admin bootstrap requires a name, email, and password "
-                + "between 12 and 72 characters."
+                + "between 8 and 72 characters."
             );
         }
 
