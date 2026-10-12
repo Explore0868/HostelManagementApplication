@@ -42,7 +42,7 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
-                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/auth/**", "/api/health", "/health").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                 // Announcements: Any authenticated user can read; only ADMIN can modify
@@ -103,6 +103,11 @@ public class SecurityConfig {
     }
 
     private Collection<GrantedAuthority> authoritiesFromRoleClaim(Jwt jwt) {
+        Boolean mustChangePassword = jwt.getClaimAsBoolean("mustChangePassword");
+        if (Boolean.TRUE.equals(mustChangePassword)) {
+            return List.of(new SimpleGrantedAuthority("ROLE_PASSWORD_CHANGE_REQUIRED"));
+        }
+
         Object roleClaim = jwt.getClaims().get("role");
         Collection<?> roles = roleClaim instanceof Collection<?> values
                 ? values
@@ -134,15 +139,18 @@ public class SecurityConfig {
         List<String> origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
+                .map(origin -> origin.replaceAll("/+$", ""))
                 .collect(Collectors.toList());
+
+        if (origins.isEmpty()) {
+            origins = List.of("http://localhost:5173");
+        }
 
         config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(
             List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
         );
-        config.setAllowedHeaders(
-            List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With")
-        );
+        config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);

@@ -1,8 +1,10 @@
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Settings as SettingsIcon,
   ShieldCheck,
+  ShieldAlert,
   UserPlus,
   KeyRound,
 } from "lucide-react";
@@ -18,9 +20,10 @@ function getSignedInUser() {
 }
 
 export default function Settings() {
+  const navigate = useNavigate();
   const currentUser = getSignedInUser();
   const [activeTab, setActiveTab] = useState("password");
-const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -51,53 +54,90 @@ const [saving, setSaving] = useState(false);
     });
   };
 
-  
+  const submitPassword = async (event) => {
+    event.preventDefault();
+    setMessage("");
 
-const submitPassword = async (event) => {
-  event.preventDefault();
-  setMessage("");
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setMessage("New passwords do not match.");
+      return;
+    }
 
-  if (
-    passwordForm.newPassword !== passwordForm.confirmPassword
-  ) {
-    setMessage("New passwords do not match.");
-    return;
-  }
+    if (passwordForm.newPassword.length < 8) {
+      setMessage("Password must contain at least 8 characters.");
+      return;
+    }
 
-  if (passwordForm.newPassword.length < 8) {
-    setMessage("Password must contain at least 8 characters.");
-    return;
-  }
+    const newPwd = passwordForm.newPassword;
+    setSaving(true);
 
-  setSaving(true);
+    try {
+      await apiRequest("/account/password", {
+        method: "PUT",
+        body: {
+          currentPassword: passwordForm.currentPassword,
+          newPassword: newPwd,
+        },
+      });
 
-  try {
-    await apiRequest("/account/password", {
-      method: "PUT",
-      body: {
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      },
-    });
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
 
-    setPasswordForm({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
+      // Automatically sign in with the new password to obtain a fresh JWT token
+      // with mustChangePassword = false and full ROLE_ADMIN authorities
+      try {
+        const loginResult = await apiRequest("/auth/login", {
+          method: "POST",
+          body: {
+            email: currentUser?.email,
+            password: newPwd,
+          },
+        });
 
-    setMessage(
-      "Password changed successfully. Use your new password next time you log in."
-    );
-  } catch (err) {
-    setMessage(
-      err?.message ||
-      "Could not change password. Check your current password and try again."
-    );
-  } finally {
-    setSaving(false);
-  }
-};
+        if (loginResult?.accessToken) {
+          localStorage.setItem("token", loginResult.accessToken);
+          const role = String(loginResult.role || "").replace(/^ROLE_/, "").toUpperCase();
+          const updatedUser = {
+            userId: loginResult.userId,
+            fullName: loginResult.fullName,
+            email: loginResult.email || currentUser?.email,
+            role,
+            hostelName: loginResult.hostelName || currentUser?.hostelName || "",
+            systemAdmin: Boolean(loginResult.systemAdmin),
+            mustChangePassword: false,
+          };
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+
+          setMessage("Password updated successfully! Unlocking your dashboard...");
+          setTimeout(() => {
+            navigate(updatedUser.systemAdmin ? "/system-admin" : "/dashboard", { replace: true });
+          }, 1000);
+          return;
+        }
+      } catch {
+        // If automatic re-login fails, redirect to the login screen with guidance
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        navigate("/login", {
+          replace: true,
+          state: { info: "Password changed successfully! Please log in with your new password." },
+        });
+        return;
+      }
+
+      setMessage("Password changed successfully. Please log in with your new password.");
+    } catch (err) {
+      setMessage(
+        err?.message ||
+        "Could not change password. Check your current password and try again."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
 const submitAdmin = async (event) => {
   event.preventDefault();
@@ -162,42 +202,70 @@ const submitAdmin = async (event) => {
         </div>
       </header>
 
-      <section className="settings-security-note">
-        <ShieldCheck size={22} />
-        <div>
-          <strong>Administrator security</strong>
-          <p>
-            Change your own password or create another
-            administrator account.
-          </p>
-        </div>
-      </section>
-
-      <nav className="settings-tabs">
-        <button
-          type="button"
-          className={activeTab === "password" ? "active" : ""}
-          onClick={() => {
-            setActiveTab("password");
-            setMessage("");
+      {currentUser?.mustChangePassword ? (
+        <section
+          style={{
+            margin: "0 0 1.5rem",
+            padding: "1rem 1.25rem",
+            backgroundColor: "#fffbeb",
+            border: "1px solid #fde68a",
+            borderRadius: "10px",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.85rem",
+            color: "#92400e",
           }}
         >
-          <KeyRound size={17} />
-          Change Password
-        </button>
+          <ShieldAlert size={24} style={{ flexShrink: 0, color: "#d97706" }} />
+          <div>
+            <strong style={{ display: "block", fontSize: "0.95rem", color: "#78350f" }}>
+              Action Required: Initial Account Setup
+            </strong>
+            <span style={{ fontSize: "0.875rem", color: "#92400e" }}>
+              Please set your new permanent password below. Once saved, all hostel management features (Dashboard, Students, Rooms, Allocations, Attendance, Fees) will unlock automatically.
+            </span>
+          </div>
+        </section>
+      ) : (
+        <section className="settings-security-note">
+          <ShieldCheck size={22} />
+          <div>
+            <strong>Administrator security</strong>
+            <p>
+              Change your own password or create another
+              administrator account.
+            </p>
+          </div>
+        </section>
+      )}
 
-        <button
-          type="button"
-          className={activeTab === "admins" ? "active" : ""}
-          onClick={() => {
-            setActiveTab("admins");
-            setMessage("");
-          }}
-        >
-          <UserPlus size={17} />
-          Add Administrator
-        </button>
-      </nav>
+      {!currentUser?.mustChangePassword && (
+        <nav className="settings-tabs">
+          <button
+            type="button"
+            className={activeTab === "password" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("password");
+              setMessage("");
+            }}
+          >
+            <KeyRound size={17} />
+            Change Password
+          </button>
+
+          <button
+            type="button"
+            className={activeTab === "admins" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("admins");
+              setMessage("");
+            }}
+          >
+            <UserPlus size={17} />
+            Add Administrator
+          </button>
+        </nav>
+      )}
 
       {message && (
         <div className="settings-message" role="status">
@@ -209,7 +277,9 @@ const submitAdmin = async (event) => {
         <section className="settings-card">
           <h2>Change Your Password</h2>
           <p className="settings-description">
-            Update the password for your own administrator account.
+            {currentUser?.mustChangePassword
+              ? "Enter your temporary initial password and choose a secure permanent password (minimum 8 characters)."
+              : "Update the password for your own administrator account."}
           </p>
 
           <form onSubmit={submitPassword}>

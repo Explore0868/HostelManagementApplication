@@ -1,6 +1,7 @@
 
 package com.hostel.management.config;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -32,17 +33,36 @@ public class JwtConfig {
     public SecretKey jwtSecretKey(
             @Value("${jwt.secret}") String base64Secret) {
 
+        if (base64Secret == null || base64Secret.isBlank()) {
+            throw new IllegalStateException("JWT_SECRET must be configured and cannot be blank");
+        }
+
+        String cleaned = base64Secret.trim();
+        if ((cleaned.startsWith("\"") && cleaned.endsWith("\"")) ||
+            (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+            cleaned = cleaned.substring(1, cleaned.length() - 1).trim();
+        }
+
         byte[] keyBytes;
         try {
-            keyBytes = Base64.getDecoder().decode(base64Secret);
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalStateException(
-                    "JWT_SECRET must be a valid Base64 value", ex);
+            keyBytes = Base64.getDecoder().decode(cleaned);
+        } catch (IllegalArgumentException ex1) {
+            try {
+                keyBytes = Base64.getUrlDecoder().decode(cleaned);
+            } catch (IllegalArgumentException ex2) {
+                byte[] rawBytes = cleaned.getBytes(StandardCharsets.UTF_8);
+                if (rawBytes.length >= 32) {
+                    keyBytes = rawBytes;
+                } else {
+                    throw new IllegalStateException(
+                            "JWT_SECRET must be a valid Base64 value or at least 32 UTF-8 characters", ex1);
+                }
+            }
         }
 
         if (keyBytes.length < 32) {
             throw new IllegalStateException(
-                    "JWT_SECRET must decode to at least 32 bytes");
+                    "JWT_SECRET must decode to at least 32 bytes (256 bits) for HMAC-SHA256.");
         }
 
         return new SecretKeySpec(keyBytes, "HmacSHA256");

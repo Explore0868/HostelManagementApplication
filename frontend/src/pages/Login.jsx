@@ -1,7 +1,7 @@
 
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
-import { LockKeyhole, Mail, Eye, EyeOff, GraduationCap } from "lucide-react";
+import { Navigate, useNavigate, useLocation } from "react-router-dom";
+import { LockKeyhole, Mail, Eye, EyeOff, GraduationCap, CheckCircle2 } from "lucide-react";
 import { apiRequest } from "../services/api";
 import "./Login.css";
 
@@ -13,10 +13,12 @@ function normalizeRole(role) {
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const info = location.state?.info || "";
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -52,8 +54,14 @@ export default function Login() {
           role,
           hostelName: result.hostelName || "",
           systemAdmin: Boolean(result.systemAdmin),
+          mustChangePassword: Boolean(result.mustChangePassword),
         })
       );
+
+      if (result.mustChangePassword) {
+        navigate(result.systemAdmin ? "/system-admin/settings" : "/settings", { replace: true });
+        return;
+      }
 
       navigate(
         role === "ADMIN" ? (result.systemAdmin ? "/system-admin" : "/dashboard") : "/student-dashboard",
@@ -76,6 +84,10 @@ export default function Login() {
   }
 
   if (savedToken && savedUser) {
+    if (savedUser.mustChangePassword) {
+      return <Navigate to={savedUser.systemAdmin ? "/system-admin/settings" : "/settings"} replace />;
+    }
+
     const role = normalizeRole(savedUser.role);
 
     if (role === "ADMIN") {
@@ -99,6 +111,28 @@ export default function Login() {
         <p className="login-subtitle">
           Sign in to access your hostel portal.
         </p>
+
+        {info && (
+          <div
+            role="status"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              padding: "0.75rem 1rem",
+              marginBottom: "1.25rem",
+              backgroundColor: "#ecfdf5",
+              color: "#065f46",
+              border: "1px solid #a7f3d0",
+              borderRadius: "8px",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+            }}
+          >
+            <CheckCircle2 size={18} style={{ flexShrink: 0, color: "#059669" }} />
+            <span>{info}</span>
+          </div>
+        )}
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label htmlFor="email">Email address</label>

@@ -15,6 +15,8 @@ import {
   ChevronRight,
   ClipboardList,
   CreditCard,
+  Lock,
+  ShieldAlert,
 } from "lucide-react";
 import "./AdminLayout.css";
 
@@ -91,23 +93,39 @@ export default function AdminLayout() {
         <p className="admin-menu-label">WORKSPACE</p>
 
         <nav className="admin-navigation" aria-label="Admin navigation">
-          {menuItems.map(({ label, path, icon: Icon }) => (
-            <NavLink
-              key={path}
-              to={path}
-              end
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `admin-nav-link ${isActive ? "active" : ""}`
-              }
-            >
-              <Icon size={19} />
-              <span>{label}</span>
-              {location.pathname === path && (
-                <ChevronRight className="admin-nav-chevron" size={16} />
-              )}
-            </NavLink>
-          ))}
+          {menuItems.map(({ label, path, icon: Icon }) => {
+            const isLocked = Boolean(user?.mustChangePassword && path !== "/settings");
+            return (
+              <NavLink
+                key={path}
+                to={isLocked ? "#" : path}
+                end
+                onClick={(e) => {
+                  if (isLocked) {
+                    e.preventDefault();
+                    navigate("/settings");
+                    return;
+                  }
+                  setSidebarOpen(false);
+                }}
+                className={({ isActive }) =>
+                  `admin-nav-link ${isActive && !isLocked ? "active" : ""}`
+                }
+                title={isLocked ? "Set a permanent password in Settings to unlock this feature" : undefined}
+                style={isLocked ? { opacity: 0.55, cursor: "not-allowed" } : undefined}
+              >
+                <Icon size={19} />
+                <span>{label}</span>
+                {isLocked ? (
+                  <Lock size={14} style={{ marginLeft: "auto", opacity: 0.7 }} />
+                ) : (
+                  location.pathname === path && (
+                    <ChevronRight className="admin-nav-chevron" size={16} />
+                  )
+                )}
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="admin-sidebar-bottom">
@@ -155,6 +173,55 @@ export default function AdminLayout() {
             <span>{user?.hostelName || "System administrator"}</span>
           </div>
         </header>
+
+        {user?.mustChangePassword && (
+          <div
+            role="alert"
+            style={{
+              margin: "1.25rem 1.5rem 0",
+              padding: "1rem 1.25rem",
+              backgroundColor: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "1rem",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", color: "#92400e" }}>
+              <ShieldAlert size={22} style={{ flexShrink: 0, color: "#d97706" }} />
+              <div>
+                <strong style={{ display: "block", fontSize: "0.95rem", color: "#78350f" }}>
+                  Action Required: Temporary Password Detected
+                </strong>
+                <span style={{ fontSize: "0.875rem", color: "#92400e" }}>
+                  You are signed in with a temporary password. All management features (Attendance, Rooms, Allocations, Fees) are locked until you set a permanent password in Settings.
+                </span>
+              </div>
+            </div>
+            {location.pathname !== "/settings" && (
+              <button
+                type="button"
+                onClick={() => navigate("/settings")}
+                style={{
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "#d97706",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontWeight: 600,
+                  fontSize: "0.875rem",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Go to Settings
+              </button>
+            )}
+          </div>
+        )}
 
         <main className="admin-page-content">
           <Outlet />

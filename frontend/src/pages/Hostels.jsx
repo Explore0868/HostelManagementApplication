@@ -36,9 +36,14 @@ export default function Hostels() {
     catch (err) { setMessage(err.message); }
   }
   async function remove(hostel) {
-    if (!window.confirm(`Remove hostel ${hostel.name} (${hostel.hostelId}) and its owner account? Records: ${hostel.blocks?.length || 0} blocks, ${hostel.roomCount || 0} rooms, ${hostel.studentCount || 0} students. The backend only permits deletion when no rooms or students remain.`)) return;
-    try { await apiRequest(`/admin/hostels/${hostel.id}?confirm=true`, { method: "DELETE" }); await load(); }
-    catch (err) { setMessage(err.message); }
+    if (!window.confirm(`Remove hostel "${hostel.name}" and its owner account? The backend permits deletion when no rooms or students remain.`)) return;
+    try {
+      await apiRequest(`/admin/hostels/${hostel.id}?confirm=true`, { method: "DELETE" });
+      setMessage(`Hostel "${hostel.name}" and its owner account were removed successfully.`);
+      await load();
+    } catch (err) {
+      setMessage(err.message || "Failed to remove hostel.");
+    }
   }
   return <main className="hostels-page">
     <header><span>SYSTEM ADMINISTRATION</span><h1>Hostels</h1><p>Create hostels with their owner accounts, then manage owner access.</p></header>

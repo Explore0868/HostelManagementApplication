@@ -25,7 +25,9 @@ class HostelOwnerWorkflowIntegrationTest {
     void systemAdminCreatesOwnersAndOwnersAreIsolated() throws Exception {
         String suffix = Long.toString(System.nanoTime());
         String adminEmail = "system-admin-test@example.com";
-        users.save(new User("System Admin", adminEmail, encoder.encode("admin-password"), UserRole.ADMIN));
+        if (users.findByEmailIgnoreCase(adminEmail).isEmpty()) {
+            users.save(new User("System Admin", adminEmail, encoder.encode("admin-password"), UserRole.ADMIN));
+        }
 
         String hostelA = "Workflow A " + suffix;
         String hostelB = "Workflow B " + suffix;
@@ -65,6 +67,15 @@ class HostelOwnerWorkflowIntegrationTest {
                 .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("A-" + suffix))));
         mvc.perform(get("/api/rooms").header("Authorization", "Bearer " + ownerTokenA))
                 .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("A-" + suffix)));
+
+        String listResult = mvc.perform(get("/api/admin/hostels").with(jwt().jwt(j -> j.subject(adminEmail)).authorities(() -> "ROLE_ADMIN")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        java.util.List<Number> ids = com.jayway.jsonpath.JsonPath.read(listResult, "$[?(@.name == '" + hostelB + "')].id");
+        Number hostelBId = ids.get(0);
+
+        mvc.perform(delete("/api/admin/hostels/" + hostelBId + "?confirm=true").with(jwt().jwt(j -> j.subject(adminEmail)).authorities(() -> "ROLE_ADMIN")))
+                .andExpect(status().isNoContent());
     }
 
     private String login(String email, String password, boolean mustChange) throws Exception {

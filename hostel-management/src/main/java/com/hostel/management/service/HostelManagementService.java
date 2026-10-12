@@ -137,8 +137,24 @@ public class HostelManagementService {
         boolean hasStudents = students.findAll().stream().anyMatch(s -> hostel.getName().equalsIgnoreCase(s.getHostelName()));
         if (hasRooms || hasStudents) throw new ResponseStatusException(HttpStatus.CONFLICT,
                 "This hostel has rooms or students. Remove or reassign its records before deleting it.");
-        users.delete(hostel.getOwner());
+
+        String hostelName = hostel.getName();
+        User owner = hostel.getOwner();
+
+        hostelBlocks.findByHostelNameIgnoreCaseOrderByNameAsc(hostelName).forEach(hostelBlocks::delete);
+        announcementRepository.findAll().stream()
+                .filter(a -> hostelName.equalsIgnoreCase(a.getHostelName()))
+                .forEach(announcementRepository::delete);
+        if (owner != null && owner.getId() != null) {
+            ownerNotifications.findByUserIdOrderByCreatedAtDesc(owner.getId()).forEach(ownerNotifications::delete);
+        }
+
         hostels.delete(hostel);
+        hostels.flush();
+
+        if (owner != null) {
+            users.delete(owner);
+        }
     }
 
     private Hostel get(Long id) {

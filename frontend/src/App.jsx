@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
 } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Activity, BedDouble, CalendarDays, CreditCard, LogOut, Megaphone, RefreshCw, UserRound, ThumbsUp, ThumbsDown } from "lucide-react";
@@ -42,12 +43,17 @@ function getRole(user) {
 function ProtectedRoute({ allowedRoles, systemAdminOnly = false, hostelAdminOnly = false, children }) {
   const token = localStorage.getItem("token");
   const user = getUser();
+  const location = useLocation();
 
   if (!token || !user) {
     return <Navigate to="/login" replace />;
   }
 
   const role = getRole(user);
+  const isSettingsPath = location.pathname.endsWith("/settings");
+  if (user?.mustChangePassword && !isSettingsPath) {
+    return <Navigate to={user.systemAdmin ? "/system-admin/settings" : "/settings"} replace />;
+  }
   if (systemAdminOnly && (role !== "ADMIN" || user.systemAdmin !== true)) return <Navigate to={role === "STUDENT" ? "/student-dashboard" : "/dashboard"} replace />;
   if (hostelAdminOnly && (role !== "ADMIN" || user.systemAdmin === true)) return <Navigate to={role === "STUDENT" ? "/student-dashboard" : "/system-admin"} replace />;
 
@@ -194,6 +200,9 @@ function LoginRoute() {
   const user = getUser();
 
   if (token && user) {
+    if (user.mustChangePassword) {
+      return <Navigate to={user.systemAdmin ? "/system-admin/settings" : "/settings"} replace />;
+    }
     return (
       <Navigate
         to={
@@ -267,6 +276,7 @@ export default function App() {
           <Route path="/system-admin" element={<SystemAdminDashboard />} />
           <Route path="/system-admin/hostels" element={<Hostels />} />
           <Route path="/system-admin/notifications" element={<AdminNotifications />} />
+          <Route path="/system-admin/settings" element={<Settings />} />
         </Route>
             
 
