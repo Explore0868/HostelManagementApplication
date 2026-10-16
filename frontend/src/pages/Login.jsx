@@ -187,6 +187,14 @@ export default function Login() {
           </button>
         </form>
 
+        <p className="login-footer" >
+          Hostel gmail: hostel@gmail.com <br></br>
+          hostel Password : hostel@123 <br />
+          student gmail: student@gmail.com <br />
+          student password : 12345678 <br />
+
+        </p>
+
         <p className="login-footer">
           Secure access for hostel administrators and students.
         </p>
