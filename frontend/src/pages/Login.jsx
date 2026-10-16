@@ -186,19 +186,15 @@ export default function Login() {
             {loading ? "Signing in..." : "Sign in to your account"}
           </button>
         </form>
-        <p className="login-footer" >
-          Hostel gmail: hostel@gmail.com <br></br>
-          hostel Password : hostel@123 <br />
-          student gmail: student@gmail.com <br />
-          student password : 12345678 <br />
-
-        </p>
+        
 
         <p className="login-footer" >
           Hostel gmail: hostel@gmail.com <br></br>
           hostel Password : hostel@123 <br />
           student gmail: student@gmail.com <br />
           student password : 12345678 <br />
+          admin gmail : Premchand@gmail.com <br />
+          admin password : Premchand_2007 <br />
 
         </p>
 
