@@ -12,7 +12,10 @@ import com.hostel.management.repository.StudentRepository;
 import com.hostel.management.repository.UserRepository;
 import com.hostel.management.repository.HostelRepository;
 import com.hostel.management.repository.AttendanceRepository;
+import com.hostel.management.entity.FeeRecord;
+import com.hostel.management.entity.Payment;
 import com.hostel.management.repository.FeeRecordRepository;
+import com.hostel.management.repository.PaymentRepository;
 import com.hostel.management.repository.AnnouncementReactionRepository;
 import com.hostel.management.security.SecurityUtils;
 
@@ -23,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -37,6 +41,7 @@ public class StudentService {
     private final HostelRepository hostelRepository;
     private final AttendanceRepository attendanceRepository;
     private final FeeRecordRepository feeRecordRepository;
+    private final PaymentRepository paymentRepository;
     private final AnnouncementReactionRepository announcementReactionRepository;
 
     public StudentService(
@@ -48,6 +53,7 @@ public class StudentService {
             HostelRepository hostelRepository,
             AttendanceRepository attendanceRepository,
             FeeRecordRepository feeRecordRepository,
+            PaymentRepository paymentRepository,
             AnnouncementReactionRepository announcementReactionRepository) {
         this.studentRepository = studentRepository;
         this.userRepository = userRepository;
@@ -57,6 +63,7 @@ public class StudentService {
         this.hostelRepository = hostelRepository;
         this.attendanceRepository = attendanceRepository;
         this.feeRecordRepository = feeRecordRepository;
+        this.paymentRepository = paymentRepository;
         this.announcementReactionRepository = announcementReactionRepository;
     }
 
@@ -285,19 +292,48 @@ public class StudentService {
 
         securityUtils.enforceHostelAccess(getStudentHostel(student));
 
-        if (feeRecordRepository.existsByStudent_Id(studentId)) {
+        List<FeeRecord> feeRecords = feeRecordRepository.findByStudent_IdOrderByDueDateDesc(studentId);
+        boolean hasDuePayment = feeRecords.stream().anyMatch(fee -> {
+            if (fee.getStatus() != FeeRecord.FeeStatus.PAID) {
+                return true;
+            }
+            BigDecimal total = fee.getTotalAmount() != null ? fee.getTotalAmount() : BigDecimal.ZERO;
+            BigDecimal paid = fee.getPaidAmount() != null ? fee.getPaidAmount() : BigDecimal.ZERO;
+            return total.compareTo(paid) > 0;
+        });
+
+        if (hasDuePayment) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "This student has fee or payment history. Deactivate the student to preserve financial records."
+                    "Cannot delete this student because they have pending or due fee payments. Clear all dues before deleting."
             );
         }
 
         User linkedUser = student.getUser();
 
         try {
+            for (FeeRecord fee : feeRecords) {
+                List<Payment> payments = paymentRepository.findByFeeRecord_IdOrderByPaymentDateDesc(fee.getId());
+                if (!payments.isEmpty()) {
+                    paymentRepository.deleteAll(payments);
+                }
+            }
+            paymentRepository.flush();
+
+            if (!feeRecords.isEmpty()) {
+                feeRecordRepository.deleteAll(feeRecords);
+                feeRecordRepository.flush();
+            }
+
             allocationRepository.deleteByStudent_Id(studentId);
+            allocationRepository.flush();
+
             attendanceRepository.deleteByStudent_Id(studentId);
+            attendanceRepository.flush();
+
             announcementReactionRepository.deleteByStudent_Id(studentId);
+            announcementReactionRepository.flush();
+
             studentRepository.delete(student);
             studentRepository.flush();
 
@@ -309,8 +345,7 @@ public class StudentService {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Cannot permanently delete this student because dependent "
-                            + "records exist, such as fees, payments, or other linked data. "
-                            + "Deactivate the student instead.",
+                            + "records exist. Deactivate the student instead.",
                     exception
             );
         }

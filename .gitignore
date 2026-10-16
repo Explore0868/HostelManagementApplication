@@ -8,3 +8,4 @@ target/
 *.log
 .idea/
 .vscode/
+student-attendance-system/

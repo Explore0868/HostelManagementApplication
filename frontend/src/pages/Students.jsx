@@ -127,13 +127,13 @@ export default function Students() {
     const id = getStudentId(student);
     if (id == null || deletingId != null) return;
     const name = student.fullName ?? student.name ?? "this student";
-    if (!window.confirm(`Permanently delete ${name}? Their room allocations and attendance history will also be removed. Students with fee or payment history must be deactivated instead.`)) return;
+    if (!window.confirm(`Permanently delete ${name}? Their room allocations, attendance history, and settled fee records will also be removed. Students with pending or unpaid fee balance cannot be deleted.`)) return;
     setDeletingId(id);
     setError("");
     setSuccess("");
     try {
       await apiRequest(`/students/${id}`, { method: "DELETE" });
-      setSuccess(`${name} and their room allocations were deleted.`);
+      setSuccess(`${name} and their records were deleted.`);
       await loadStudents();
     } catch (err) {
       setError(err?.message || "Could not delete this student.");
